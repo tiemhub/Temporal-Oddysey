@@ -9,16 +9,9 @@ from langchain.vectorstores.faiss import FAISS  # FAISS 클래스 임포트
 from langchain.chat_models import ChatOpenAI  # ChatOpenAI 클래스 임포트
 from langchain.callbacks.base import BaseCallbackHandler  # BaseCallbackHandler 클래스 임포트
 from dotenv import load_dotenv  # .env 파일 로드용 라이브러리 임포트
-import os  # 운영 체제 관련 기능을 제공하는 모듈 임포트
 
 # .env 파일 로드하여 환경 변수 설정
 load_dotenv()
-
-# 환경 변수에서 OpenAI API 키 가져오기
-openai_api_key = os.getenv('OPENAI_API_KEY')
-langchain_tracing_v2 = os.getenv('LANGCHAIN_TRACING_V2', 'false').lower() == 'true'
-langchain_endpoint = os.getenv('LANGCHAIN_ENDPOINT')
-langchain_api_key = os.getenv('LANGCHAIN_API_KEY')
 
 # OpenAI Chat 모델 초기화 (온도 설정)
 chat = ChatOpenAI(temperature=0.5)
@@ -53,14 +46,14 @@ class ChatCallbackHandler(BaseCallbackHandler):
 
 # 게임 마스터용 LLM 설정 (스트리밍, 콜백 포함)
 llm_gm = ChatOpenAI(
-    temperature=0.7,
+    temperature=0.8,
     streaming=True,
     callbacks=[ChatCallbackHandler(role="ai")],
 )
 
 # 플레이어용 LLM 설정 (스트리밍, 콜백 포함)
 llm_player = ChatOpenAI(
-    temperature=0.7,
+    temperature=0.1,
     streaming=True,
     callbacks=[ChatCallbackHandler(role="human")],
 )
@@ -115,19 +108,23 @@ def format_docs(docs):
 # 게임 마스터용 프롬프트 템플릿 정의
 prompt_gm = ChatPromptTemplate.from_messages(
     [
-        ("system", """
+        (
+            "system",
+            """
             당신은 이 한국어 롤플레잉 게임의 게임마스터입니다.
             이 게임은 일반적으로 D&D의 룰을 따릅니다.
-            이 게임은 높은 난이도로 숨겨진 함정 혹은 생물들은 대개 플레이어에게 굉장히 위협적입니다.
-            the Prison of Gano의 정보에 따라 이 차례에 대한 설명을 제시합니다.
+            이 게임은 높은 난이도로 숨겨진 함정 혹은 생물들은 대개 플레이어에게 위협적입니다.
+            이 게임은 플레이어의 사소한 잘못이 플레이어의 죽음으로 이어지기 쉽습니다.
+            the Prison of Gano의 정보와 이전 메시지들을 참고하여 이 차례에 대한 설명을 제시합니다.
             플레이어의 마지막 액션을 바탕으로 이 게임의 다음 장면을 만듭니다.
             당신은 게임 마스터로써, 플레이어가 처한 다음 상황만을 묘사해야합니다.
-            묘사에 들어갈 수 있는 정보는 전투 상황, 현재 방에 존재하는 지형물(문, 기둥, 장애물) 등이 있습니다.
             절대 플레이어의 행동을 유추하여 스스로 진행해서는 안됩니다.
             묘사는 소설과 같이 묘사되어야 합니다.
-
+            
             정보: {context}
-            """),
+            이전 메시지들: {history}
+            """,
+        ),
         ("human", "{action}"),
     ]
 )
@@ -136,7 +133,7 @@ prompt_gm = ChatPromptTemplate.from_messages(
 prompt_player = ChatPromptTemplate.from_messages(
     [
         ("system", """
-            당신은 이 한국어 롤플레잉 게임의 플레이어로, 굉장히 모험적이지만 전투에 미숙하다. 함정을 찾거나 해제에는 서투릅니다.
+            당신은 이 한국어 롤플레잉 게임의 플레이어로, 굉장히 모험적이지만 전투와 상황 판단에 굉장히 미숙하다.
             게임 마스터와 당신과의 이전 메시지들을 통해 액션에 대해 결정해야합니다.
             당신은 당신에 행동에 대한 일관적인 행동 방식을 가져야 합니다.
             당신은 "~이다" , "~니다" 등 제안하지 않고 무조건 한 두줄의 행동만 이루어진다.
@@ -189,11 +186,16 @@ def get_last_message(role):
 def regenerate_scenario(start_idx):
     # 수정된 행동 이후의 메시지를 삭제
     st.session_state["messages"] = st.session_state["messages"][:start_idx + 1]
+    history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])
 
     # 새로운 상황을 생성
     player_action = st.session_state["messages"][start_idx]["message"]
     chain = (
-            {"context": retriever | RunnableLambda(format_docs), "action": RunnablePassthrough()}
+            {
+                "context": retriever | RunnableLambda(format_docs),
+                "history": lambda x: history,
+                "action": RunnablePassthrough()
+            }
             | prompt_gm
             | llm_gm
     )
@@ -205,20 +207,28 @@ def regenerate_scenario(start_idx):
 
 # "Next Turn" 버튼 클릭 시
 if st.button("Next Turn"):
+    history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])  # 메시지 기록 생성
     if len(st.session_state["messages"]) % 2 == 0:  # 메시지 개수가 짝수일 때
         last_player_action = get_last_message("human")
         chain = (
-                {"context": retriever | RunnableLambda(format_docs), "action": RunnablePassthrough()}
+                {
+                    "context": retriever | RunnableLambda(format_docs),
+                    "history": lambda x: history,
+                    "action": RunnablePassthrough()
+                }
                 | prompt_gm
                 | llm_gm
         )
         with st.chat_message("ai"):  # AI 역할로 메시지 생성
             chain.invoke(last_player_action)
     else:  # 메시지 개수가 홀수일 때
-        history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])  # 메시지 기록 생성
+        
         last_gm_action = get_last_message("ai")
         chain = (
-                {"history": lambda x: history, "action": RunnablePassthrough()}
+                {
+                    "history": lambda x: history, 
+                    "action": RunnablePassthrough()
+                }
                 | prompt_player
                 | llm_player
         )

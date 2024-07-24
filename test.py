@@ -171,12 +171,14 @@ def get_last_message(role):
     return ""
 
 if st.button("Next Turn"):
+    history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])
     if len(st.session_state["messages"]) % 2 == 0:
         # 게임 마스터의 차례
         last_player_action = get_last_message("human")
         chain = (
             {
                 "context": retriever | RunnableLambda(format_docs),
+                "history": lambda x: history,
                 "action": RunnablePassthrough(),
             }
             | prompt_gm
@@ -186,7 +188,6 @@ if st.button("Next Turn"):
             chain.invoke(last_player_action)
     else:
         # 플레이어의 차례
-        history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])
         last_gm_action = get_last_message("ai")
         chain = (
             {
