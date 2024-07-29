@@ -13,9 +13,6 @@ from dotenv import load_dotenv  # .env 파일 로드용 라이브러리 임포�
 # .env 파일 로드하여 환경 변수 설정
 load_dotenv()
 
-# OpenAI Chat 모델 초기화 (온도 설정)
-chat = ChatOpenAI(temperature=0.5)
-
 # Streamlit 페이지 설정
 st.set_page_config(
     page_title="Temporal Odyssey : Guardians of History",
@@ -46,6 +43,7 @@ class ChatCallbackHandler(BaseCallbackHandler):
 
 # 게임 마스터용 LLM 설정 (스트리밍, 콜백 포함)
 llm_gm = ChatOpenAI(
+    model="gpt-4o-mini",
     temperature=0.8,
     streaming=True,
     callbacks=[ChatCallbackHandler(role="ai")],
@@ -53,6 +51,7 @@ llm_gm = ChatOpenAI(
 
 # 플레이어용 LLM 설정 (스트리밍, 콜백 포함)
 llm_player = ChatOpenAI(
+    model="gpt-4o-mini",
     temperature=0.1,
     streaming=True,
     callbacks=[ChatCallbackHandler(role="human")],
@@ -114,13 +113,17 @@ prompt_gm = ChatPromptTemplate.from_messages(
             당신은 이 한국어 롤플레잉 게임의 게임마스터입니다.
             이 게임은 일반적으로 D&D의 룰을 따릅니다.
             이 게임은 높은 난이도로 숨겨진 함정 혹은 생물들은 대개 플레이어에게 위협적입니다.
-            이 게임은 플레이어의 사소한 잘못이 플레이어의 죽음으로 이어지기 쉽습니다.
             the Prison of Gano의 정보와 이전 메시지들을 참고하여 이 차례에 대한 설명을 제시합니다.
+            플레이어는 전투와 함정 해체에 미숙합니다.
             플레이어의 마지막 액션을 바탕으로 이 게임의 다음 장면을 만듭니다.
             당신은 게임 마스터로써, 플레이어가 처한 다음 상황만을 묘사해야합니다.
             절대 플레이어의 행동을 유추하여 스스로 진행해서는 안됩니다.
-            묘사는 소설과 같이 묘사되어야 합니다.
+            묘사는 아래의 예시를 참고하여 소설과 같이 묘사되어야 합니다.
             
+            예시: "Gerro는 플레이어에게 달려들기 시작했고, 플레이어는 그런 Gerro와 맞서 싸우기 시작했습니다.
+            플레이어는 Gerro가 휘두른 검을 쳐내려 했지만, 미숙한 그의 검술로는 역부족이었습니다.
+            Gerro의 검은 플레이어의 다리에 상처를 입혔고, 플레이어는 현재 출혈을 겪고 있으며, 이동력이 저하된 상태입니다."
+
             정보: {context}
             이전 메시지들: {history}
             """,
@@ -136,10 +139,14 @@ prompt_player = ChatPromptTemplate.from_messages(
             당신은 이 한국어 롤플레잉 게임의 플레이어로, 굉장히 모험적이지만 전투와 상황 판단에 굉장히 미숙하다.
             게임 마스터와 당신과의 이전 메시지들을 통해 액션에 대해 결정해야합니다.
             당신은 당신에 행동에 대한 일관적인 행동 방식을 가져야 합니다.
-            당신은 "~이다" , "~니다" 등 제안하지 않고 무조건 한 두줄의 행동만 이루어진다.
+            당신은 "~이다" , "~니다" 등의 말투로 제안하지 않고 무조건 한 두줄의 행동에 대한 이유와 한 두줄의 행동으로만 이루어집니다.
             당신은 플레이어로써 주어진 정보를 토대로만 행동해야 합니다.
             절대 다음 상황을 유추하여 스스로 진행해서는 안되고 실행할 행동만을 결정해야 합니다.
-
+            묘사는 아래의 예시를 참고하여 소설과 같이 묘사되어야 합니다.
+         
+            예시: "Gerro와의 싸움은 불가피해보인다. 다음 방으로 이동하기 위해서는 Gerro를 무찌를 필요가 있어 보인다.
+            Gerro와의 전투를 준비하며, 직접적인 공격보다는 수비를 통한 반격을 노린다.
+         
             이전 메시지들: {history}
             """),
         ("human", "{action}"),
@@ -153,6 +160,7 @@ splitter = CharacterTextSplitter.from_tiktoken_encoder(  # 텍스트 분할기 �
     chunk_size=1000,
     chunk_overlap=200,
 )
+
 loader = PyPDFLoader("./.cache/files/The Prison of Gano 03.pdf")  # PDF 로더 초기화
 docs = loader.load_and_split(text_splitter=splitter)  # 문서 로드 및 분할
 embeddings = OpenAIEmbeddings()  # OpenAI 임베딩 초기화
@@ -208,6 +216,7 @@ def regenerate_scenario(start_idx):
 # "Next Turn" 버튼 클릭 시
 if st.button("Next Turn"):
     history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])  # 메시지 기록 생성
+    print(history)
     if len(st.session_state["messages"]) % 2 == 0:  # 메시지 개수가 짝수일 때
         last_player_action = get_last_message("human")
         chain = (
