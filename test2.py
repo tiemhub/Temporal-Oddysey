@@ -33,9 +33,9 @@ class ChatCallbackHandler(BaseCallbackHandler):
 
     def on_llm_end(self, *args, **kwargs):  # LLM 종료 시 호출
         save_message(self.message, self.role)  # 메시지 저장
-        if self.message_box:  # 메시지 박스가 존재하면
-            self.message_box.empty()  # 메시지 박스 비우기
-            self.message_box = None  # 메시지 박스 초기화
+        # if self.message_box:  # 메시지 박스가 존재하면
+        #     self.message_box.empty()  # 메시지 박스 비우기
+        #     self.message_box = None  # 메시지 박스 초기화
 
     def on_llm_new_token(self, token, *args, **kwargs):  # 새로운 토큰 생성 시 호출
         self.message += token  # 메시지에 토큰 추가
@@ -102,9 +102,9 @@ def send_message(message, role, save=True):
 def paint_history():
     for idx, message in enumerate(st.session_state["messages"]):  # 메시지들을 순회
         if message["role"] == "ai":  # AI 메시지인 경우
-            send_message(f"### 상황 {idx // 2 + 1}\n\n{message['message']}", message["role"], save=False)  # 상황 메시지 전송
+            send_message(f"{message['message']}", message["role"], save=False)  # 상황 메시지 전송
         else:  # 인간 메시지인 경우
-            send_message(f"### 행동 {idx // 2 + 1}\n\n{message['message']}", message["role"], save=False)  # 행동 메시지 전송
+            send_message(f"{message['message']}", message["role"], save=False)  # 행동 메시지 전송
 
 
 # 문서 포맷팅 함수 정의
@@ -284,9 +284,13 @@ def check_action(action):
 if "censorship_result" not in st.session_state:
     st.session_state["censorship_result"] = "Code Green"
 
+if "clicked" not in st.session_state:
+    st.session_state["clicked"] = True
+
 # "Next Turn" 버튼 클릭 시
 if st.session_state["censorship_result"] == "Code Green":
-    if st.button("Next Turn"):
+    if st.session_state["clicked"]:
+        paint_history()
         history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])  # 메시지 기록 생성
         if len(st.session_state["messages"]) % 2 == 0:  # 메시지 개수가 짝수일 때
             last_player_action = get_last_message("human")
@@ -314,8 +318,11 @@ if st.session_state["censorship_result"] == "Code Green":
             )
             with st.chat_message("human"):  # 인간 역할로 메시지 생성
                 chain.invoke(last_gm_action)
+        st.session_state["clicked"] = False
 
-        paint_history()
+
+if st.button("Next Turn"):
+    st.session_state["clicked"] = True
 
 # 메시지가 있는 경우 행동 수정 기능 제공
 if st.session_state["messages"]:
