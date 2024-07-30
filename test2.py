@@ -219,14 +219,21 @@ vectorstore = FAISS.from_documents(docs, cached_embeddings)  # 벡터 스토어 
 retriever = vectorstore.as_retriever()  # 리트리버 초기화
 
 # Streamlit 페이지 타이틀 설정
-st.title("Temporal Odyssey : Guardians of History")
+st.title("Temporal Odyssey")
 
 # 페이지 소개글 설정
 st.markdown("""
-어둠 속에서, 오래된 감옥 "가노의 감옥"이 숨어 있다.
-이 감옥은 수많은 모험가들이 도전하였으나 돌아오지 못한 곳으로 악명이 높다.
-감옥의 벽은 뛰어난 석재로 지어졌고, 플래그스톤으로 된 바닥은 발소리를 숨기기 어려운 구조이다.
-감옥 내부는 따뜻하지만, 희미한 빛만이 간간이 비추어 앞을 가늠하기 어려운 곳이다.
+### How to play
+이 게임은 자동으로 진행이 이루어지는 TRPG입니다.
+            
+Next Turn을 누를 경우, 게임 마스터와 플레이어가 번갈아가며 자신의 차례를 수행합니다.
+
+당신은 과거 플레이어의 행동을 취소하고 원하는 행동을 변경할 수 있습니다.
+
+플레이어의 행동을 변경하여 플레이어의 승리를 도우세요!
+
+
+**게임의 규칙을 망가뜨리려는 시도는 저지될 수 있습니다!**
 """)
 
 # 세션 상태에 메시지 배열 초기화
