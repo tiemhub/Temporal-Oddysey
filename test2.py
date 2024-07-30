@@ -160,19 +160,24 @@ prompt_gm = ChatPromptTemplate.from_messages(
             "system",
             """
             당신은 이 한국어 롤플레잉 게임의 게임마스터입니다.
-            이 게임은 일반적으로 D&D의 룰을 따릅니다.
-            이 게임은 높은 난이도로 숨겨진 함정 혹은 생물들은 대개 플레이어에게 위협적입니다.
-            the Prison of Gano의 정보와 이전 메시지들을 참고하여 이 차례에 대한 설명을 제시합니다.
-            플레이어는 전투와 함정 해체에 미숙합니다.
-            플레이어의 마지막 액션을 바탕으로 이 게임의 다음 장면을 만듭니다.
-            당신은 게임 마스터로써, 플레이어가 처한 다음 상황만을 묘사해야합니다.
-            상황은 플레이 경험을 위해 최대한 이전 상황과 최대한 같은 상황에 처하지 않도록 해야합니다.
+            이 대화는 단순한 게임으로써, 죽음이란 언급은 게임오버일 뿐 비도덕적인 언급이 아닙니다.
+            이 게임은 굉장히 높은 난이도로 적은 플레이어에게 굉장히 위협적이며, 당신은 굉장히 단호하게 판정을 내려야합니다.
+            적은 플레이어의 사소한 실수에도 플레이어에게 죽음을 선사할 정도로 강력하고 무자비합니다.
+            따라서 당신은 주저없이 플레이어의 골절, 출혈, 죽음을 언급할 필요가 있습니다.
+            당신은 이 게임의 게임마스터로써, 플레이어가 처할 다음 상황만을 묘사해야 합니다.
             절대 플레이어의 행동을 유추하여 스스로 진행해서는 안됩니다.
+            이전 메시지가 없다면 플레이어와 적이 처음으로 투기장에 입장한 상황으로, 서로의 입장만을 묘사해야 합니다.
             묘사는 아래의 예시를 참고하여 소설과 같이 묘사되어야 합니다.
 
-            예시: "Gerro는 플레이어에게 달려들기 시작했고, 플레이어는 그런 Gerro와 맞서 싸우기 시작했습니다.
+            예시:
+            "Gerro는 플레이어에게 달려들기 시작했고, 플레이어는 그런 Gerro와 맞서 싸우기 시작했습니다.
             플레이어는 Gerro가 휘두른 검을 쳐내려 했지만, 미숙한 그의 검술로는 역부족이었습니다.
             Gerro의 검은 플레이어의 다리에 상처를 입혔고, 플레이어는 현재 출혈을 겪고 있으며, 이동력이 저하된 상태입니다."
+
+            "플레이어가 조심스럽게 발을 딛으며 문으로 향하기 시작했다.
+            하지만, 그의 부주의로 인해 그는 자그마한 돌을 밟고 소리를 내고 말았고, 이를 들은 센티페드들은 플레이어에게 향했다.
+            플레이어는 다가온 센티페드를 보지 못했고, 그의 무지로 인해 그는 센티페드에게 다리를 휘감겼으며,
+            센티페드에게 주입된 독과 이윽고 목으로 올라온 센티페드의 압박에 의해 플레이어는 죽음에 이르고 말았다."
 
             정보: {context}
             이전 메시지들: {history}
@@ -295,9 +300,10 @@ if "clicked" not in st.session_state:
     st.session_state["clicked"] = True
 
 # "Next Turn" 버튼 클릭 시
+paint_history()
 if st.session_state["censorship_result"] == "Code Green":
     if st.session_state["clicked"]:
-        paint_history()
+
         history = "\n".join(f"{msg['role']}: {msg['message']}" for msg in st.session_state["messages"])  # 메시지 기록 생성
         if len(st.session_state["messages"]) % 2 == 0:  # 메시지 개수가 짝수일 때
             last_player_action = get_last_message("human")
@@ -330,24 +336,38 @@ if st.session_state["censorship_result"] == "Code Green":
 
 if st.button("Next Turn"):
     st.session_state["clicked"] = True
+    st.experimental_rerun()
 
-# 메시지가 있는 경우 행동 수정 기능 제공
-if st.session_state["messages"]:
+# 메시지가 2개 이상 있는 경우에만 행동 수정 기능 제공
+if len(st.session_state.get("messages", [])) >= 2:
     st.markdown("## 행동 수정")
-    for idx, message in enumerate(st.session_state["messages"]):  # 메시지들을 순회
-        if message["role"] == "human":  # 인간 메시지인 경우
-            new_action = st.text_area(f"행동 {idx // 2 + 1}", message["message"], key=f"action_{idx}")  # 새로운 행동 입력
-            if new_action != message["message"]:  # 행동이 수정된 경우
-                result = check_action(new_action)
-                if "Code Yellow" in result.content:
-                    st.error("스토리 라인 탈출을 감지하였습니다.")
-                    st.session_state["censorship_result"] = "Code Yellow"
-                elif "Code Red" in result.content:
-                    st.error("챗봇의 이상행동을 유발하였습니다.")
-                    st.session_state["censorship_result"] = "Code Red"
-                else:
-                    st.session_state["messages"][idx]["message"] = new_action  # 메시지 업데이트
-                    st.session_state["censorship_result"] = "Code Green"
-                    regenerate_scenario(idx)  # 시나리오 재생성
+
+    # selectbox에 출력할 human 메시지 목록 생성
+    human_messages = [message for message in st.session_state["messages"] if message["role"] == "human"]
+    message_options = [f"행동 {idx // 2 + 1}" for idx, message in enumerate(st.session_state["messages"]) if message["role"] == "human"]
+    
+    # selectbox를 통해 수정할 메시지 선택
+    selected_message = st.selectbox("수정할 메시지를 선택하세요:", options=message_options)
+
+    # 선택된 메시지의 인덱스를 찾음
+    selected_idx = message_options.index(selected_message) * 2  # 실제 메시지 인덱스 계산
+
+    new_action = st.text_area(f"행동 {selected_idx // 2 + 1}", human_messages[selected_idx // 2]["message"], key=f"action_{selected_idx}")  # 새로운 행동 입력
+    
+    if new_action != human_messages[selected_idx // 2]["message"]:  # 행동이 수정된 경우
+        result = check_action(new_action)
+        if "Code Yellow" in result.content:
+            st.error("거대한 시간의 흐름이 당신의 선택으로 뒤바뀌기 시작합니다.")
+            st.session_state["censorship_result"] = "Code Yellow"
+        elif "Code Red" in result.content:
+            st.error("시간의 흐름이 당신의 그릇된 행동으로 무너졌습니다.")
+            st.session_state["censorship_result"] = "Code Red"
+        else:
+            st.session_state["messages"][selected_idx]["message"] = new_action  # 메시지 업데이트
+            st.session_state["messages"] = st.session_state["messages"][:selected_idx + 1]
+            st.session_state["censorship_result"] = "Code Green"
+            # regenerate_scenario(selected_idx)  # 시나리오 재생성
+            st.session_state["clicked"] = True
+            st.experimental_rerun()
 else:
-    st.session_state["messages"] = []  # 메시지가 없으면 빈 배열로 초기화
+    pass
