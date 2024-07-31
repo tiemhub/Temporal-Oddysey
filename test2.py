@@ -360,7 +360,8 @@ if st.button("Next Turn"):
 
 # 메시지가 2개 이상 있는 경우에만 행동 수정 기능 제공
 if len(st.session_state.get("messages", [])) >= 2:
-    st.markdown("## 행동 수정")
+    st.markdown("""## 행동 수정
+                원하는 행동을 수정하고 Ctrl+Enter를 눌러주세요""")
 
     # selectbox에 출력할 human 메시지 목록 생성
     human_messages = [message for message in st.session_state["messages"] if message["role"] == "human"]
