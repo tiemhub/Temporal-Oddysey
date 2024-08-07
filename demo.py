@@ -380,11 +380,11 @@ if len(st.session_state.get("messages", [])) >= 2:
     # 선택된 메시지의 인덱스를 찾음
     selected_idx = message_options.index(selected_message) * 2 + 1
 
-    new_action = st.text_area("new action", human_messages[selected_idx // 2]["message"], key=f"action_{selected_idx}", label_visibility="collapsed")
+    new_action = st.text_area("new action", human_messages[selected_idx // 2]["message"], key=f"action_{selected_idx}", label_visibility="collapsed", height=200)
     
     if new_action != human_messages[selected_idx // 2]["message"]:
         score = float(re.search(r"\d+\.\d+", check_action(new_action).content).group())
-        if score >= 0.9:
+        if score >= 0.8:
             st.session_state["censorship_result"] = "Code Red"
             st.session_state["messages"] = []
         elif score >= 0.4:
